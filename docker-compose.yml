@@ -1,0 +1,85 @@
+version: "3"
+services:
+  rabbitmq:
+    image: "rabbitmq:3.6.12-management-alpine"
+    hostname: "tix-time-rabbitmq"
+    environment:
+      - RABBITMQ_DEFAULT_VHOST=/
+      - RABBITMQ_ERLANG_COOKIE
+      - RABBITMQ_DEFAULT_USER
+      - RABBITMQ_DEFAULT_PASS
+      - RABBITMQ_DEFAULT_PASSWORD
+    ports:
+      - "15673:15672"
+      - "5672:5672"
+    expose:
+      - "5672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+# docker run --name tix_time_server --net="host" -dit -e TIX__HTTP_PORT=18080 -e TIX__ENVIRONMENT=stage -e TIX__LOG_LEVEL=INFO tixmeasurements/tix-time-server:latest
+  tix-time-server:
+    image: "tixmeasurements/tix-time-server:latest"
+    environment:
+      - TIX__ENVIRONMENT=stage
+      - TIX__LOG_LEVEL=INFO
+      - TIX__QUEUE__HOST=rabbitmq
+      - TIX__QUEUE__USER
+      - TIX__QUEUE__PASSWORD
+    ports:
+      - "4500:4500"
+      - "18080:8080"
+    links:
+      - rabbitmq
+    command: ["./wait-for-it.sh", "rabbitmq:5672", "-s", "--", "run.sh"]
+# docker run --net="host" --name=tix_time_condenser -dit -e SPRING_PROFILES_ACTIVE=staging -e TIX_CONDENSER_TIX_API_USER=admin -e TIX_CONDENSER_TIX_API_PASSWORD=admin123 -e TIX_CONDENSER_TIX_API_HTTPS=true -e TIX_CONDENSER_TIX_API_HOST=tix.innova-red.net -e TIX_CONDENSER_TIX_API_PORT=443 -v ReportsVolume:/tmp/reports tixmeasurements/tix-time-condenser:latest
+  tix-time-condenser:
+    image: "tixmeasurements/tix-time-condenser:latest"
+    environment:
+      - SPRING_PROFILES_ACTIVE=staging
+      - SPRING_RABBITMQ_HOST=rabbitmq
+      - SPRING_RABBITMQ_USERNAME
+      - SPRING_RABBITMQ_PASSWORD
+      - TIX_CONDENSER_TIX_API_HTTPS=True
+      - TIX_CONDENSER_TIX_API_HOST=tix.innova-red.net
+      - TIX_CONDENSER_TIX_API_PORT=443
+      - TIX_CONDENSER_TIX_API_USER
+      - TIX_CONDENSER_TIX_API_PASSWORD
+    volumes:
+      - reports-data:/tmp/reports
+    links:
+      - rabbitmq
+    command: ["./wait-for-it.sh", "rabbitmq:5672", "-s", "--", "run.sh"]
+# docker run --net="host" --name=tix_time_processor -dit -e PROCESSOR_TIPE=STANDALONE -e TIX_API_SSL=True -e TIX_API_HOST=tix.innova-red.net -e TIX_API_USER=admin -e TIX_API_PASSWORD=admin123 -v SchedulerVolume:/tmp/celerybeat-schedule.d -v ReportsVolume:/tmp/reports tixmeasurements/tix-time-processor:latest
+  tix-time-processor-beat:
+    image: "tixmeasurements/tix-time-processor:latest"
+    environment:
+      - PROCESSOR_TYPE=BEAT
+      - TIX_RABBITMQ_HOST=rabbitmq
+      - TIX_RABBITMQ_USER
+      - TIX_RABBITMQ_PASS
+    volumes:
+      - celery-scheduler-data:/tmp/celerybeat-schedule.d
+    links:
+      - rabbitmq
+    command: ["./wait-for-it.sh", "rabbitmq:5672", "-s", "--", "run.sh"]
+  tix-time-processor-worker:
+    image: "tixmeasurements/tix-time-processor:latest"
+    environment:
+      - PROCESSOR_TYPE=WORKER
+      - TIX_RABBITMQ_HOST=rabbitmq
+      - TIX_API_SSL=True
+      - TIX_API_HOST=tix.innova-red.net
+      - TIX_API_USER
+      - TIX_API_PASSWORD
+      - TIX_RABBITMQ_USER
+      - TIX_RABBITMQ_PASS
+    volumes:
+      - reports-data:/tmp/reports
+      - celery-scheduler-data:/tmp/celerybeat-schedule.d
+    links:
+      - rabbitmq
+    command: ["./wait-for-it.sh", "rabbitmq:5672", "-s", "--", "run.sh"]
+volumes:
+  reports-data:
+  celery-scheduler-data:
+  rabbitmq-data:
