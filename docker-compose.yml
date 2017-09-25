@@ -10,8 +10,8 @@ services:
       - RABBITMQ_DEFAULT_PASS
       - RABBITMQ_DEFAULT_PASSWORD
     ports:
-      - "15673:15672"
-      - "5672:5672"
+      - "127.0.0.1:15673:15672"
+      - "127.0.0.1:5672:5672"
     expose:
       - "5672"
     volumes:
@@ -26,8 +26,8 @@ services:
       - TIX__QUEUE__USER
       - TIX__QUEUE__PASSWORD
     ports:
-      - "4500:4500"
-      - "18080:8080"
+      - "4500:4500/udp"
+      - "127.0.0.1:18080:8080"
     links:
       - rabbitmq
     command: ["./wait-for-it.sh", "rabbitmq:5672", "-s", "--", "run.sh"]
